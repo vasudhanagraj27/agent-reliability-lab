@@ -4,22 +4,25 @@ The public demo serves **recorded results**. It needs no database and no LLM key
 cannot be abused to spend anything.
 
 ## What gets deployed
-`Dockerfile` builds a container that runs `uvicorn api.main:app` and serves the dashboard from
-`results/*.jsonl` and `results/*.traces.json`. Live runs are off unless `ENABLE_LIVE_RUN=1`.
+The dashboard serves **recorded results**, so the public demo needs no database and no LLM key. It stays free and
+cannot be abused to spend anything. There are two ways to host it:
 
-## Hugging Face Spaces (Docker SDK), free CPU tier
-1. Create a Space at huggingface.co/new-space, choose the **Docker** SDK, blank template.
-2. In the Space's `README.md`, use this front matter:
-   ```
-   ---
-   title: Agent Reliability Lab
-   sdk: docker
-   app_port: 7860
-   ---
-   ```
-3. Push this repo's files (`Dockerfile`, `requirements.txt`, `core/`, `domains/`, `experiments/`,
-   `api/`, `static/`, `results/`) to the Space's git remote.
-4. The Space builds and serves the dashboard at its URL.
+1. **Static site (free everywhere, recommended).** `python -m experiments.export_static --out <dir> --space-readme`
+   writes `index.html` plus `data.json` (about 200 KB). The same page falls back to `data.json` when there is no
+   `/api`. Works on a **static Hugging Face Space**, GitHub Pages, Netlify, etc.
+2. **Container with the FastAPI backend** (`Dockerfile`). Needs a host that runs containers; on Hugging Face the
+   Docker SDK may not be free on every account, so check before relying on it. Live runs are off unless
+   `ENABLE_LIVE_RUN=1`.
+
+## Static Hugging Face Space
+1. Create a Space at huggingface.co/new-space: SDK **Static**, template **Blank**, Public.
+2. Build the site: `python -m experiments.export_static --out ../agent-reliability-lab-static --space-readme`
+3. Clone the Space, copy the three files in (`index.html`, `data.json`, `README.md`), commit and push.
+   Authenticate with your HF username and a **Write** access token.
+4. The site is live at `https://<hf-username>-agent-reliability-lab.static.hf.space` within a minute or two.
+   Note the `.static.` in the hostname: static Spaces are not served from plain `.hf.space`.
+
+Re-run the export whenever `results/` changes, then copy and push again.
 
 Check Hugging Face's current free-tier terms before relying on this; they can change.
 

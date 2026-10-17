@@ -13,6 +13,8 @@ grades every outcome from the **actual database state**, never from what the age
 > **checkpointing alone did nothing and once made things worse**. Read the [limitations](#limitations) before
 > quoting any of this.
 
+**Live dashboard:** https://vasudhaa27-agent-reliability-lab.static.hf.space/  ·  [Hugging Face Space](https://huggingface.co/spaces/vasudhaa27/agent-reliability-lab)
+
 ![dashboard](docs/dashboard.png)
 <!-- Add a screenshot at docs/dashboard.png before publishing. -->
 
@@ -148,7 +150,7 @@ Please read these. The numbers above are real, and they are small and narrow.
 ## Quickstart
 Requirements: Python 3.13 (the version tested), Docker, a free [Groq](https://console.groq.com) API key (or another provider).
 ```bash
-git clone <this repo> && cd agent-reliability-lab
+git clone https://github.com/vasudhanagraj27/agent-reliability-lab.git && cd agent-reliability-lab
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env            # add GROQ_API_KEY; set LLM_MODEL to a tool-calling model your key can use
 docker compose up -d            # PostgreSQL on :5433
@@ -182,8 +184,9 @@ docs/         ARCHITECTURE.md  DEPLOY.md  STATUS.md
 
 ## Deploy
 The demo serves **recorded results**: no database or LLM key, so it is free and can't be abused to spend
-anything. See [`docs/DEPLOY.md`](docs/DEPLOY.md) (Hugging Face Space, Docker SDK). Live runs
-(`POST /api/live-run`) are off unless `ENABLE_LIVE_RUN=1`.
+anything. Build a static copy with `python -m experiments.export_static --out site --space-readme` and host it on a
+static Hugging Face Space or any static host; or run the container (`Dockerfile`) with the FastAPI backend. See
+[`docs/DEPLOY.md`](docs/DEPLOY.md). Live runs (`POST /api/live-run`) are off unless `ENABLE_LIVE_RUN=1`.
 
 ## License
 Add a license of your choice before publishing.

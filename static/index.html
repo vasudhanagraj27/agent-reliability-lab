@@ -170,10 +170,35 @@ const colorVar = c => c === "baseline" ? "--c-baseline" : c === HARDENED_FULL ? 
 const state = { name: null, domain: "", summary: null, records: [], scenarios: [], ablation: null };
 
 /* ------------------------------------------------------------------ data */
+/* Static mode: on a host with no /api (e.g. a static Hugging Face Space) the same page reads a bundled
+   data.json built by experiments/export_static.py. With the FastAPI backend present this path is never used. */
+let STATIC = null;
+async function loadStatic() {
+  if (STATIC !== null) return STATIC;
+  try { const r = await fetch("data.json"); STATIC = r.ok ? await r.json() : false; } catch (_) { STATIC = false; }
+  return STATIC;
+}
+function fromStatic(url) {
+  const u = new URL(url, location.href), p = u.pathname.replace(/^.*\/api\//, "/api/"), D = STATIC;
+  let m;
+  if (p === "/api/datasets") return D.datasets;
+  if (p === "/api/ablation" && D.ablation) return D.ablation;
+  if ((m = p.match(/^\/api\/summary\/([^/]+)$/)) && D.summary[m[1]]) return D.summary[m[1]];
+  if ((m = p.match(/^\/api\/records\/([^/]+)$/)) && D.records[m[1]]) return D.records[m[1]];
+  if ((m = p.match(/^\/api\/compare\/([^/]+)$/)) && D.records[m[1]]) {
+    const q = u.searchParams, traces = D.traces[m[1]] || {};
+    const runs = D.records[m[1]].filter(r => r.domain === q.get("domain") && r.scenario_id === q.get("scenario") && r.trial === +q.get("trial"));
+    if (runs.length) return { runs: runs.map(r => ({ ...r, events: traces[r.run_id] || null })) };
+  }
+  throw new Error(`${url}: not in static data`);
+}
 async function getJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url}: ${r.status}`);
-  return r.json();
+  if (STATIC) return fromStatic(url);
+  let r = null;
+  try { r = await fetch(url); } catch (_) { /* network error: fall through */ }
+  if (r && r.ok) return r.json();
+  if (url.startsWith("/api/") && await loadStatic()) return fromStatic(url);
+  throw new Error(`${url}: ${r ? r.status : "network error"}`);
 }
 
 async function boot() {
