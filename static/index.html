@@ -327,7 +327,7 @@ const FINDINGS = [
   ["Idempotency did most of the work", "On its own it prevented the duplicate in all 8 duplicate-risk scenarios (timeouts, crashes, concurrency, stale reads). Its only misses are the two approval scenarios."],
   ["Checkpointing alone did not help, and hurt once", "In D4 it resumed the stored call after the crash and re-issued the rollback without re-checking state. The baseline restarted from scratch and the model noticed it was already done."],
   ["Verification trusts a read that can be stale", "It fixes plain timeouts (F2, D2) but fails on stale reads, crashes and concurrency."],
-  ["Authorization's duplicate fixes are a policy accident", "In DevOps the rule \"only when degraded\" denied the second rollback. Finance has no such precondition and still duplicates. On F7 (another customer's order) the model declined on its own in 3 of 4 runs without authorization, so that is mostly model variance; authorization makes the refusal certain."],
+  ["Authorization's one duplicate fix is a policy accident", "Only D5 (concurrent alerts) passes because of it: the rule \"only when degraded\" denied the second rollback after the first healed the service. D4 passes for the baseline too, and D2/D6 still duplicate because the retry happens below the authorization check. On F7 (another customer's order) the model declined on its own in 3 of 4 runs without authorization, so that is mostly model variance; authorization makes the refusal certain."],
   ["Approval needs authorization and the approval step", "Authorization alone is safe but escalates or fails F11 and D11. Only the full configuration completes them. Approval was not ablated separately."],
 ];
 function ablationCard() {

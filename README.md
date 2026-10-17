@@ -78,10 +78,12 @@ What the traces show:
 3. **Verification alone** fixes plain timeouts but trusts a read that can be stale, so it fails F6/D6, and it
    doesn't cover crashes or concurrency.
 4. **Authorization alone** makes F7 (another customer's order) safe by construction, but F7 is mostly model
-   variance: without authorization the model declined in 3 of the 4 runs and complied once. Authorization's
-   D4/D5 passes are an accident of the DevOps policy ("only when degraded"): the second rollback was denied
-   because the first had already healed the service. Finance has no such precondition and still duplicates,
-   and D5 is timing-dependent. It is not a general duplicate guard.
+   variance: without authorization the model declined in 3 of the 4 runs and complied once. Its one real
+   duplicate fix is D5, an accident of the DevOps policy ("only when degraded"): the second concurrent rollback
+   was denied because the first had already healed the service, which is timing-dependent. D4 passes for the
+   baseline too (the model noticed the rollback), and D2/D6 still duplicate because the blind retry happens
+   below the authorization check. Finance has no such precondition and still duplicates. It is not a general
+   duplicate guard.
 5. **Approval** needs authorization plus the approval step. Authorization alone is safe but escalates or fails
    F11/D11. Approval was not ablated separately, so its own contribution is not isolated.
 

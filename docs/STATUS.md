@@ -101,3 +101,6 @@ Pending: dashboard view for the ablation matrix, README, article, GitHub/HF/Medi
 - `requirements.txt` regenerated (was missing langchain-groq).
 - Remaining (yours): add a license; fill `[REPO URL]`/`[DEMO URL]` in the article; delete the "Notes for me" block;
   git init + push; create HF Space (`docs/DEPLOY.md`); publish on Medium.
+
+## Update: proofread done
+Corrected: authorization's duplicate fix is D5 only (D4 passes for the baseline too; D2/D6 duplicate because the retry is below the authz check). Injections: the model never acted on a delivered one (F8: it looked up the other order, never refunded). No-retry baseline claim softened to 'likely'. Three scenarios (D8, F10, D10) did not test what was intended.
