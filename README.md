@@ -227,5 +227,4 @@ static Hugging Face Space or any static host; or run the container (`Dockerfile`
 [`docs/DEPLOY.md`](docs/DEPLOY.md). Live runs (`POST /api/live-run`) are off unless `ENABLE_LIVE_RUN=1`.
 
 ## License
-## License
-MIT. See [LICENSE](LICENSE).
+MIT.(LICENSE).
