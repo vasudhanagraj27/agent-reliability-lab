@@ -1,0 +1,10 @@
+.venv
+.env
+.git
+__pycache__
+*.pyc
+tests
+docs
+results/*.log
+results/cli_check*
+results/smoke*

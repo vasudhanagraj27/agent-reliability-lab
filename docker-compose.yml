@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: arl-postgres
+    environment:
+      POSTGRES_USER: arl
+      POSTGRES_PASSWORD: arl
+      POSTGRES_DB: arl
+    ports:
+      - "5433:5432"
+    volumes:
+      - arl-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arl -d arl"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  arl-pgdata:

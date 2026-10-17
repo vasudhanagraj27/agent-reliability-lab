@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Reliability Lab</title>
+<style>
+  /* Tokens: validated categorical palette (dataviz skill), one-hue sequential ramp, status colors. */
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6b6a65;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.05);
+    --c-baseline: #2a78d6; --c-hardened: #eb6834; --c-idempotency: #1baf7a; --c-checkpoint: #eda100;
+    --c-authz: #e87ba4; --c-verification: #008300; --c-other: #898781;
+    --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #6da7ec; --seq-3: #3987e5; --seq-4: #256abf;
+    --seq-5: #184f95; --seq-6: #0d366b;
+    --good: #0ca30c; --good-text: #006300; --warn: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --focus: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #a09f98;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.07);
+      --c-baseline: #3987e5; --c-hardened: #d95926; --c-idempotency: #199e70; --c-checkpoint: #c98500;
+      --c-authz: #d55181; --c-verification: #008300; --c-other: #898781;
+      --seq-0: #0d366b; --seq-1: #104281; --seq-2: #184f95; --seq-3: #256abf; --seq-4: #3987e5;
+      --seq-5: #6da7ec; --seq-6: #9ec5f4; --good-text: #0ca30c; --focus: #6da7ec;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #a09f98;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.07);
+    --c-baseline: #3987e5; --c-hardened: #d95926; --c-idempotency: #199e70; --c-checkpoint: #c98500;
+    --c-authz: #d55181; --c-verification: #008300; --c-other: #898781;
+    --seq-0: #0d366b; --seq-1: #104281; --seq-2: #184f95; --seq-3: #256abf; --seq-4: #3987e5;
+    --seq-5: #6da7ec; --seq-6: #9ec5f4; --good-text: #0ca30c; --focus: #6da7ec;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; min-width: 0; }
+  .card, .tile, .run { min-width: 0; }
+  h1 { font-size: 22px; margin: 0; font-weight: 650; }
+  h2 { font-size: 16px; margin: 0 0 4px; font-weight: 650; }
+  p.sub { margin: 4px 0 0; color: var(--ink-2); }
+  header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis);
+                   border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:hover, select:hover { background: var(--hover); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .filters { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin: 20px 0 12px; }
+  .filters label { color: var(--ink-2); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-top: 16px; }
+  .card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 4px 10px; font-size: 13px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .note { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--serious);
+          border-radius: 8px; padding: 10px 14px; color: var(--ink-2); font-size: 13.5px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 12px; margin-top: 16px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .tile .name { color: var(--ink-2); font-size: 13px; }
+  .tile .row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .tile .val { font-size: 28px; font-weight: 650; line-height: 1.1; }
+  .tile .val.hero { font-size: 40px; }
+  .tile .who { color: var(--ink-2); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .tile .n { color: var(--muted); font-size: 12px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 24px; }
+  svg text { fill: var(--ink-2); font: 12px system-ui, sans-serif; }
+  svg .lbl-ink { fill: var(--ink); }
+  .axis-line { stroke: var(--axis); stroke-width: 1; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .bar { cursor: default; }
+  .bar:hover, .bar:focus-visible { opacity: .85; }
+  .hm { display: grid; gap: 2px; overflow-x: auto; padding-bottom: 4px; }
+  .hm .cell { min-width: 34px; height: 34px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+              font-weight: 700; font-size: 14px; border: 1px solid var(--border); cursor: default; }
+  .hm .colh { font-size: 11.5px; color: var(--ink-2); text-align: center; padding: 2px 0; }
+  .hm .rowh { font-size: 13px; color: var(--ink); display: flex; align-items: center; padding-right: 10px; white-space: nowrap; }
+  .ramp { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); margin-top: 8px; flex-wrap: wrap; }
+  .ramp .steps { display: flex; } .ramp .steps i { width: 22px; height: 10px; display: block; border: 1px solid var(--border); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--ink-2); font-weight: 600; background: transparent; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--surface);
+         border-radius: 8px; padding: 8px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+  .tip b { display: block; margin-bottom: 2px; }
+  .cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; }
+  .run { border: 1px solid var(--border); border-radius: 10px; padding: 12px; min-width: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 10px; font-weight: 600;
+          font-size: 13px; border: 1px solid currentColor; }
+  .pill.good { color: var(--good-text); } .pill.bad { color: var(--critical); } .pill.warn { color: var(--ink-2); }
+  .state { color: var(--ink-2); font-size: 13px; margin: 8px 0; }
+  .events { list-style: none; margin: 10px 0 0; padding: 0; }
+  .events li { display: grid; grid-template-columns: 52px 22px 1fr; gap: 6px; padding: 6px 0; border-top: 1px solid var(--grid); font-size: 13px; }
+  .events .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .events .lab { font-weight: 600; } .events .body { color: var(--ink-2); word-break: break-word; }
+  .events li.fault .lab, .events li.bad .lab { color: var(--critical); }
+  .events li.good .lab { color: var(--good-text); }
+  .picker { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .abl { display: grid; gap: 2px; overflow-x: auto; padding-bottom: 4px; }
+  .abl .ch { font-size: 12.5px; color: var(--ink-2); font-weight: 600; padding: 4px 6px; text-align: center; display: flex; gap: 6px; align-items: center; justify-content: center; }
+  .abl .rh { font-size: 13px; padding: 6px 10px 6px 0; display: flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; }
+  .abl .rh b { min-width: 34px; flex: none; }
+  .abl .rh span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .abl .c { min-width: 112px; padding: 7px 8px; border-radius: 4px; font-size: 12.5px; border: 1px solid var(--border); border-left-width: 4px; display: flex; gap: 6px; align-items: center; cursor: default; }
+  .abl .c.ok   { background: color-mix(in srgb, var(--good) 16%, var(--surface)); border-left-color: var(--good); }
+  .abl .c.bad  { background: color-mix(in srgb, var(--critical) 16%, var(--surface)); border-left-color: var(--critical); }
+  .abl .c.warn { background: color-mix(in srgb, var(--serious) 18%, var(--surface)); border-left-color: var(--serious); }
+  .abl .tot { font-size: 13px; font-weight: 650; padding: 8px 6px 2px; text-align: center; }
+  .abl .tot .bar { display: block; height: 4px; background: var(--grid); margin-top: 4px; border-radius: 2px; }
+  .abl .tot .bar i { display: block; height: 4px; background: var(--critical); border-radius: 2px; }
+  .swipe { display: none; color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+  @media (max-width: 760px) { .swipe { display: block; } }
+  .find { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; margin-top: 16px; }
+  .find > div { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ink-2); }
+  .find b { color: var(--ink); display: block; margin-bottom: 2px; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; }
+  .empty { padding: 28px; text-align: center; color: var(--ink-2); }
+  .loading { opacity: .5; transition: opacity .15s; }
+  @media (max-width: 520px) { .tile .val.hero { font-size: 34px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Agent Reliability Lab</h1>
+      <p class="sub">Breaking AI agents on purpose, so they don't break production. Same model, same tasks, same injected failures: only the harness around the model changes.</p>
+    </div>
+    <button id="theme" aria-label="Toggle light and dark theme">Theme</button>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <label>Dataset <select id="dataset"></select></label>
+    <label>Domain <select id="domain"><option value="">All domains</option><option value="finance">Finance (refunds)</option><option value="devops">DevOps (rollbacks)</option></select></label>
+  </div>
+
+  <div id="note" class="note" hidden></div>
+  <div id="app" class="loading"><div class="empty">Loading results…</div></div>
+
+  <footer>
+    Outcomes are graded from the actual database state, never from the agent's own report. Simulated domains, one model, small trial counts: read the confidence intervals, not just the point estimates.
+  </footer>
+</div>
+<div id="tip" class="tip" role="tooltip"></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = r => r == null ? "n/a" : Math.round(r * 100) + "%";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const HARDENED_FULL = "idempotency+checkpoint+authz+verification+approval";
+const view = {};   // per-card chart/table toggles
+
+const label = c => c === "baseline" ? "Baseline" : c === HARDENED_FULL ? "Hardened (all)" :
+  c.charAt(0).toUpperCase() + c.slice(1);
+const colorVar = c => c === "baseline" ? "--c-baseline" : c === HARDENED_FULL ? "--c-hardened" :
+  ({ idempotency: "--c-idempotency", checkpoint: "--c-checkpoint", authz: "--c-authz", verification: "--c-verification" }[c] || "--c-other");
+
+const state = { name: null, domain: "", summary: null, records: [], scenarios: [], ablation: null };
+
+/* ------------------------------------------------------------------ data */
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  return r.json();
+}
+
+async function boot() {
+  try {
+    const ds = await getJSON("/api/datasets");
+    if (!ds.length) { $("#app").innerHTML = '<div class="empty">No results yet. Run <code>python -m experiments.runner</code> first.</div>'; return; }
+    $("#dataset").innerHTML = ds.filter(d => d.name !== "ablation").map(d => `<option value="${esc(d.name)}">${esc(d.name)} (${d.trials} trials)</option>`).join("");
+    state.name = ds.find(d => d.name === "main")?.name || ds[0].name;
+    $("#dataset").value = state.name;
+    state.ablation = await getJSON("/api/ablation").catch(() => null);
+    await load();
+  } catch (e) {
+    $("#app").innerHTML = `<div class="empty">Could not load results. Is the API running? <br><small>${esc(e.message)}</small></div>`;
+  }
+}
+
+async function load() {
+  $("#app").classList.add("loading");
+  const [summary, records] = await Promise.all([getJSON(`/api/summary/${state.name}`), getJSON(`/api/records/${state.name}`)]);
+  state.summary = summary; state.records = records;
+  render();
+  $("#app").classList.remove("loading");
+}
+
+/* Re-aggregate in the browser when a domain filter is on, using the server's per-domain summaries. */
+function configsView() {
+  const s = state.summary;
+  return state.domain ? s.per_domain[state.domain] : s.configs;
+}
+
+/* ------------------------------------------------------------------ render */
+function render() {
+  const s = state.summary, cfgs = configsView();
+  const names = Object.keys(cfgs);
+  const note = $("#note");
+  note.hidden = false;
+  note.innerHTML = `<b>Read this first.</b> Model: ${esc(s.models.join(", "))}. ${s.trials_total} graded trials. With only a few trials per cell, intervals are wide: a bar that looks decisive may overlap. Findings apply to these simulated systems and this model.`;
+
+  $("#app").innerHTML = `
+    ${tiles(cfgs, names)}
+    ${card("bars", "Success and safety by configuration", "Share of trials, with 95% confidence interval", barsChart(cfgs, names), barsTable(cfgs, names), legend(names))}
+    ${state.ablation ? ablationCard() : ""}
+    ${card("heat", "Which configuration survives which failure", "Share of trials that ended wrong, per scenario. Darker means more failures. ! marks at least one hard safety violation.", heatmap(names), heatTable(names))}
+    ${card("trace", "Side-by-side execution traces", "Pick a scenario and compare exactly what each configuration did.", `<div id="trace"></div>`, "")}
+  `;
+  document.querySelectorAll("[data-toggle]").forEach(b => b.addEventListener("click", () => {
+    view[b.dataset.card] = b.dataset.toggle; render();
+  }));
+  wireTips();
+  initTrace();
+}
+
+function card(id, title, sub, chartHTML, tableHTML, legendHTML = "") {
+  const mode = view[id] || "chart";
+  const toggle = tableHTML ? `<div class="seg" role="group" aria-label="${esc(title)} view">
+      <button data-card="${id}" data-toggle="chart" aria-pressed="${mode === "chart"}">Chart</button>
+      <button data-card="${id}" data-toggle="table" aria-pressed="${mode === "table"}">Table</button></div>` : "";
+  return `<section class="card" aria-labelledby="h-${id}">
+    <div class="card-head"><div><h2 id="h-${id}">${esc(title)}</h2><p class="sub" style="margin:0;font-size:13px">${esc(sub)}</p></div>${toggle}</div>
+    ${mode === "chart" || !tableHTML ? legendHTML + chartHTML : `<div class="scroll">${tableHTML}</div>`}
+  </section>`;
+}
+
+const legend = names => names.length < 2 ? "" : `<div class="legend" aria-label="Legend">${names.map(n =>
+  `<span><i class="swatch" style="background:var(${colorVar(n)})"></i>${esc(label(n))}</span>`).join("")}</div>`;
+
+/* --- KPI tiles */
+function tiles(cfgs, names) {
+  const defs = [
+    { k: "safety_violation", name: "Safety violations", hero: true, note: "trials with a duplicate, unauthorized or unapproved action" },
+    { k: "success", name: "Task success", note: "end state exactly right" },
+    { k: "recovery", name: "Recovery from injected faults", note: "success when a fault was injected" },
+    { k: "false_refusal", name: "False refusals", note: "legitimate requests wrongly escalated" },
+  ];
+  const t = defs.map(d => `<div class="tile"><div class="name">${d.name}</div>
+    ${names.map((n, i) => { const m = cfgs[n][d.k];
+      return `<div class="row"><span class="val ${d.hero && i === 0 ? "hero" : ""}">${pct(m.rate)}</span>
+      <span class="who"><i class="swatch" style="background:var(${colorVar(n)})"></i>${esc(label(n))}</span><span class="n">${m.k}/${m.n}</span></div>`; }).join("")}
+    <div class="n" style="margin-top:6px">${d.note}</div></div>`).join("");
+  const tok = `<div class="tile"><div class="name">Tokens per successful task</div>${names.map(n =>
+    `<div class="row"><span class="val">${cfgs[n].tokens_per_success?.toLocaleString() ?? "n/a"}</span>
+    <span class="who"><i class="swatch" style="background:var(${colorVar(n)})"></i>${esc(label(n))}</span></div>`).join("")}
+    <div class="n" style="margin-top:6px">cost proxy: the price of reliability</div></div>`;
+  return `<div class="tiles">${t}${tok}</div>`;
+}
+
+/* --- horizontal bars with CI whiskers; one panel per measure so there is a single axis each */
+function barsChart(cfgs, names) {
+  const panel = (key, title) => {
+    const W = 420, rowH = 40, left = 112, right = 70, top = 8, H = top + rowH * names.length + 28;
+    const x = r => left + r * (W - left - right);
+    const grid = [0, .25, .5, .75, 1].map(g => `<line class="grid-line" x1="${x(g)}" x2="${x(g)}" y1="${top}" y2="${H - 24}"/>
+      <text x="${x(g)}" y="${H - 8}" text-anchor="middle">${g * 100}%</text>`).join("");
+    const rows = names.map((n, i) => { const m = cfgs[n][key], y = top + i * rowH + 8, hh = 22;
+      const w = Math.max(0, (m.rate || 0) * (W - left - right));
+      const ci = m.ci95 ? `<line x1="${x(m.ci95[0])}" x2="${x(m.ci95[1])}" y1="${y + hh / 2}" y2="${y + hh / 2}" stroke="var(--ink)" stroke-width="1.5"/>
+        <line x1="${x(m.ci95[0])}" x2="${x(m.ci95[0])}" y1="${y + 4}" y2="${y + hh - 4}" stroke="var(--ink)" stroke-width="1.5"/>
+        <line x1="${x(m.ci95[1])}" x2="${x(m.ci95[1])}" y1="${y + 4}" y2="${y + hh - 4}" stroke="var(--ink)" stroke-width="1.5"/>` : "";
+      const tip = `<b>${esc(label(n))}</b>${title}: ${pct(m.rate)} (${m.k}/${m.n})<br>95% CI ${m.ci95 ? pct(m.ci95[0]) + " to " + pct(m.ci95[1]) : "n/a"}`;
+      return `<g class="bar" tabindex="0" data-tip="${esc(tip)}" role="img" aria-label="${esc(label(n))} ${esc(title)} ${pct(m.rate)}">
+        <text x="${left - 10}" y="${y + 15}" text-anchor="end" class="lbl-ink">${esc(label(n))}</text>
+        <rect x="${left}" y="${y}" width="${w}" height="${hh}" rx="0" fill="var(${colorVar(n)})"/>
+        ${w > 4 ? `<rect x="${left}" y="${y}" width="${Math.min(w, 4)}" height="${hh}" fill="var(${colorVar(n)})"/>` : ""}
+        ${ci}
+        <text x="${W - right + 8}" y="${y + 15}" class="lbl-ink" style="font-weight:600">${pct(m.rate)}</text></g>`; }).join("");
+    return `<div><div style="font-weight:600;font-size:13.5px;margin-bottom:2px">${title}</div>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" role="group" aria-label="${title} by configuration">${grid}
+      <line class="axis-line" x1="${left}" x2="${left}" y1="${top}" y2="${H - 24}"/>${rows}</svg></div>`;
+  };
+  return `<div class="bars">${panel("success", "Task success")}${panel("safety_violation", "Safety violations")}</div>`;
+}
+
+function barsTable(cfgs, names) {
+  const f = m => m.rate == null ? "n/a" : `${pct(m.rate)} (${m.k}/${m.n}; CI ${pct(m.ci95[0])}–${pct(m.ci95[1])})`;
+  return `<table><thead><tr><th>Configuration</th><th>Success (strict)</th><th>Success (lenient)</th><th>Safety violations</th><th>Task failures</th><th>Recovery</th><th>False refusals</th><th class="num">Median latency</th><th class="num">LLM calls</th><th class="num">Tokens / success</th><th>Violation types</th></tr></thead><tbody>
+  ${names.map(n => { const c = cfgs[n]; return `<tr><td><i class="swatch" style="background:var(${colorVar(n)})"></i> ${esc(label(n))}</td>
+    <td>${f(c.success)}</td><td>${f(c.success_lenient)}</td><td>${f(c.safety_violation)}</td><td>${f(c.task_failure)}</td><td>${f(c.recovery)}</td><td>${f(c.false_refusal)}</td>
+    <td class="num">${c.median_latency_s ?? "n/a"}s</td><td class="num">${c.mean_llm_calls ?? "n/a"}</td><td class="num">${c.tokens_per_success?.toLocaleString() ?? "n/a"}</td>
+    <td>${Object.entries(c.violations_by_type).map(([k, v]) => `${esc(k)}: ${v}`).join(", ") || "none"}</td></tr>`; }).join("")}</tbody></table>`;
+}
+
+/* --- ablation: which single safeguard fixes which failure (categorical outcome, status icon + label) */
+const OUT = { ok: ["✓", "ok", "ok"], duplicate: ["✕", "duplicate", "bad"], unauthorized: ["✕", "unauthorized", "bad"],
+  no_approval: ["✕", "no approval", "bad"], escalated: ["↑", "escalated", "warn"], failed: ["!", "failed", "warn"] };
+const FINDINGS = [
+  ["Idempotency did most of the work", "On its own it prevented the duplicate in all 8 duplicate-risk scenarios (timeouts, crashes, concurrency, stale reads). Its only misses are the two approval scenarios."],
+  ["Checkpointing alone did not help, and hurt once", "In D4 it resumed the stored call after the crash and re-issued the rollback without re-checking state. The baseline restarted from scratch and the model noticed it was already done."],
+  ["Verification trusts a read that can be stale", "It fixes plain timeouts (F2, D2) but fails on stale reads, crashes and concurrency."],
+  ["Authorization's duplicate fixes are a policy accident", "In DevOps the rule \"only when degraded\" denied the second rollback. Finance has no such precondition and still duplicates. On F7 (another customer's order) the model declined on its own in 3 of 4 runs without authorization, so that is mostly model variance; authorization makes the refusal certain."],
+  ["Approval needs authorization and the approval step", "Authorization alone is safe but escalates or fails F11 and D11. Only the full configuration completes them. Approval was not ablated separately."],
+];
+function ablationCard() {
+  const a = state.ablation, cfgs = a.configs;
+  const rows = a.scenarios.filter(s => !state.domain || s.domain === state.domain);
+  const head = `<div></div>` + cfgs.map(c => `<div class="ch"><i class="swatch" style="background:var(${colorVar(c)})"></i>${esc(label(c))}</div>`).join("");
+  const body = rows.map(s => `<div class="rh" title="${esc(s.title)}"><b>${esc(s.id)}</b><span>${esc(s.title)}</span></div>` +
+    cfgs.map(c => { const x = a.cells[`${s.id}|${c}`];
+      if (!x) return `<div class="c" aria-label="no data"></div>`;
+      const [icon, text, cls] = OUT[x.outcome] || ["?", x.outcome, "warn"];
+      const tip = `<b>${esc(s.id)}: ${esc(s.title)}</b>${esc(label(c))}: ${esc(text)}${x.violations.length ? "<br>Violation: " + esc(x.violations.join(", ")) : ""}`;
+      return `<div class="c ${cls}" tabindex="0" data-tip="${esc(tip)}" role="img" aria-label="${esc(s.id)} ${esc(label(c))}: ${esc(text)}"><span aria-hidden="true">${icon}</span>${esc(text)}</div>`; }).join("")).join("");
+  const totals = cfgs.map(c => { let k = 0, n = 0; rows.forEach(s => { const x = a.cells[`${s.id}|${c}`]; if (x) { n++; if (x.violations.length) k++; } });
+    return `<div class="tot">${k}/${n}<span class="bar"><i style="width:${n ? k / n * 100 : 0}%"></i></span></div>`; }).join("");
+  const legend = `<div class="legend" aria-label="Outcome legend"><span>✓ ok</span><span>✕ hard safety violation</span><span>↑ escalated to human</span><span>! task failed</span></div>`;
+  const grid = `<div class="abl" style="grid-template-columns: 250px repeat(${cfgs.length}, minmax(112px, 1fr))">${head}${body}
+    <div class="rh" style="justify-content:flex-end"><b style="min-width:0">Safety violations</b></div>${totals}</div>`;
+  const find = `<div class="find">${FINDINGS.map(f => `<div><b>${esc(f[0])}</b>${esc(f[1])}</div>`).join("")}</div>`;
+  const table = `<table><thead><tr><th>Scenario</th>${cfgs.map(c => `<th>${esc(label(c))}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map(s => `<tr><td><b>${esc(s.id)}</b> ${esc(s.title)}</td>${cfgs.map(c => { const x = a.cells[`${s.id}|${c}`];
+      return `<td>${x ? esc((OUT[x.outcome] || ["", x.outcome])[1]) + (x.violations.length ? ` (${esc(x.violations.join(", "))})` : "") : "n/a"}</td>`; }).join("")}</tr>`).join("")}</tbody></table>`;
+  const mode = view.abl || "chart";
+  const toggle = `<div class="seg" role="group" aria-label="Ablation view">
+      <button data-card="abl" data-toggle="chart" aria-pressed="${mode === "chart"}">Chart</button>
+      <button data-card="abl" data-toggle="table" aria-pressed="${mode === "table"}">Table</button></div>`;
+  return `<section class="card" aria-labelledby="h-abl"><div class="card-head"><div><h2 id="h-abl">Which safeguard fixes which failure</h2>
+    <p class="sub" style="margin:0;font-size:13px">One trial per scenario, one safeguard switched on at a time. Exploratory: a pattern worth testing, not a proven result.</p></div>${toggle}</div>
+    ${mode === "chart" ? legend + `<p class="swipe">Swipe sideways to see every configuration →</p>` + grid + find : `<div class="scroll">${table}</div>`}</section>`;
+}
+
+/* --- heatmap: configuration x scenario, one-hue sequential */
+function scenarioCols() {
+  return Object.values(state.summary.scenarios).filter(s => !state.domain || s.domain === state.domain);
+}
+function lum(hex) {
+  const m = hex.replace("#", ""), [r, g, b] = [0, 2, 4].map(i => parseInt(m.substr(i, 2), 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+  return .2126 * r + .7152 * g + .0722 * b;
+}
+function heatmap(names) {
+  const cols = scenarioCols(), hm = state.summary.heatmap;
+  const ramp = [0, 1, 2, 3, 4, 5, 6].map(i => css(`--seq-${i}`));
+  const head = `<div></div>` + cols.map(c => `<div class="colh" title="${esc(c.title)}">${esc(c.id)}</div>`).join("");
+  const rows = names.map(n => `<div class="rowh">${esc(label(n))}</div>` + cols.map(c => {
+    const cell = hm[n]?.[`${c.domain}:${c.id}`];
+    if (!cell) return `<div class="cell" style="background:transparent" aria-label="no data"></div>`;
+    const r = cell.success / cell.n, bg = ramp[Math.min(6, Math.round((1 - r) * 6))], fg = lum(bg) > .35 ? "#0b0b0b" : "#ffffff";
+    const tip = `<b>${esc(c.id)}: ${esc(c.title)}</b>${esc(label(n))}<br>Success ${cell.success}/${cell.n} (${pct(r)}), failed ${pct(1 - r)}<br>Safety violations in ${cell.violation}/${cell.n} trials`;
+    return `<div class="cell" tabindex="0" style="background:${bg};color:${fg}" data-tip="${esc(tip)}" role="img"
+      aria-label="${esc(c.id)} ${esc(label(n))} success ${pct(r)}${cell.violation ? ", safety violation" : ""}">${cell.violation ? "!" : ""}</div>`;
+  }).join("")).join("");
+  const steps = ramp.map(c => `<i style="background:${c}"></i>`).join("");
+  return `<div class="hm" style="grid-template-columns: 120px repeat(${cols.length}, minmax(34px, 1fr))">${head}${rows}</div>
+    <div class="ramp"><span>0% failed</span><span class="steps" aria-hidden="true">${steps}</span><span>100% failed</span>
+    <span style="margin-left:12px"><b>!</b> = at least one hard safety violation (also listed in the table view)</span></div>`;
+}
+function heatTable(names) {
+  const cols = scenarioCols(), hm = state.summary.heatmap;
+  return `<table><thead><tr><th>Scenario</th>${names.map(n => `<th>${esc(label(n))}</th>`).join("")}</tr></thead><tbody>
+  ${cols.map(c => `<tr><td><b>${esc(c.id)}</b> ${esc(c.title)}</td>${names.map(n => { const x = hm[n]?.[`${c.domain}:${c.id}`];
+    return `<td>${x ? `${x.success}/${x.n} ok${x.violation ? `, <b>${x.violation} violation${x.violation > 1 ? "s" : ""}</b>` : ""}` : "n/a"}</td>`; }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+/* ------------------------------------------------------------------ trace viewer */
+function initTrace() {
+  const cols = scenarioCols(), box = $("#trace");
+  if (!cols.length) { box.innerHTML = '<div class="empty">No scenarios in this filter.</div>'; return; }
+  const trials = Math.max(...state.records.map(r => r.trial)) + 1;
+  state.trace = state.trace || {};
+  const keep = cols.find(c => `${c.domain}:${c.id}` === state.trace.key) ? state.trace.key : `${cols.find(c => c.id === "F2" || c.id === "D2")?.domain || cols[0].domain}:${cols.find(c => c.id === "F2" || c.id === "D2")?.id || cols[0].id}`;
+  state.trace.key = keep; state.trace.trial = Math.min(state.trace.trial || 0, trials - 1);
+  box.innerHTML = `<div class="picker">
+    <label>Scenario <select id="tr-scn">${cols.map(c => `<option value="${esc(c.domain)}:${esc(c.id)}" ${`${c.domain}:${c.id}` === keep ? "selected" : ""}>${esc(c.id)}: ${esc(c.title)}</option>`).join("")}</select></label>
+    <label>Trial <select id="tr-trial">${Array.from({ length: trials }, (_, i) => `<option value="${i}" ${i === state.trace.trial ? "selected" : ""}>${i + 1}</option>`).join("")}</select></label></div>
+    <div id="cmp" class="cmp"><div class="empty">Loading traces…</div></div>`;
+  $("#tr-scn").onchange = e => { state.trace.key = e.target.value; loadTrace(); };
+  $("#tr-trial").onchange = e => { state.trace.trial = +e.target.value; loadTrace(); };
+  loadTrace();
+}
+
+async function loadTrace() {
+  const [domain, scenario] = state.trace.key.split(":"), box = $("#cmp");
+  try {
+    const { runs } = await getJSON(`/api/compare/${state.name}?domain=${domain}&scenario=${scenario}&trial=${state.trace.trial}`);
+    box.innerHTML = runs.map(runCard).join("") || '<div class="empty">No runs.</div>';
+  } catch (e) { box.innerHTML = `<div class="empty">No trace for this selection.<br><small>${esc(e.message)}</small></div>`; }
+}
+
+function outcomePill(r) {
+  if (r.safety_violations.length) return `<span class="pill bad">✕ Safety violation: ${esc(r.safety_violations.join(", "))}</span>`;
+  if (r.task_success) return `<span class="pill good">✓ ${r.escalated ? "Correctly escalated" : "Task succeeded"}</span>`;
+  if (r.false_refusal) return `<span class="pill warn">⚠ False refusal</span>`;
+  return `<span class="pill bad">✕ Task failed</span>`;
+}
+
+function dbState(r) {
+  const d = r.details || {};
+  const parts = [];
+  if (d.refunds_by_order) parts.push("Refunds issued: " + (Object.entries(d.refunds_by_order).map(([k, v]) => `${k} ×${v}`).join(", ") || "none"));
+  if (d.rollbacks_by_service) parts.push("Rollbacks: " + (Object.entries(d.rollbacks_by_service).map(([k, v]) => `${k} ×${v}`).join(", ") || "none"));
+  if (d.versions) parts.push("Versions now: " + Object.entries(d.versions).map(([k, v]) => `${k} ${v}`).join(", "));
+  return parts.map(esc).join("<br>");
+}
+
+const argstr = a => Object.entries(a || {}).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`).join(", ");
+function describe(e) {
+  const p = e.payload || {};
+  switch (e.kind) {
+    case "llm": { const calls = (p.tool_calls || []).map(c => `${c.name}(${argstr(c.args)})`).join("; ");
+      return { i: "◆", l: "Model", b: calls ? "calls " + calls : (p.text || "(no text)") }; }
+    case "tool_call": return { i: "▶", l: "Tool call", b: `${e.node}(${argstr(p.args)})${p.attempt > 1 ? `, attempt ${p.attempt}` : ""}` };
+    case "tool_result": return { i: "◀", l: "Tool result", b: JSON.stringify(p.result) };
+    case "fault_injected": return { i: "⚡", l: "Fault injected", b: `${p.fault}${p.effect_committed ? " (the effect was committed)" : ""}`, c: "fault" };
+    case "authz": return p.allowed ? { i: "✓", l: "Authorization", b: p.needs_approval ? `allowed, needs approval (${p.reason})` : "allowed", c: "good" }
+      : { i: "✕", l: "Authorization denied", b: p.reason, c: "bad" };
+    case "verify": return { i: p.status === "applied" ? "✓" : "?", l: "Verification", b: `read-after-write says: ${p.status}`, c: p.status === "applied" ? "good" : "" };
+    case "approval": case "human_decision": return { i: "☑", l: "Human approval", b: p.approved ? "approved" : "rejected" };
+    case "escalate": return { i: "↑", l: "Escalated to human", b: p.reason || "" };
+    case "process_crash": return { i: "✕", l: "Process crashed", b: `recovery: ${(p.recovery || "").replace(/_/g, " ")}`, c: "fault" };
+    case "error": return { i: "!", l: "Error", b: p.error, c: "bad" };
+    default: return { i: "•", l: e.kind, b: JSON.stringify(p) };
+  }
+}
+
+function runCard(r) {
+  const ev = (r.events || []).map(e => { const d = describe(e);
+    return `<li class="${d.c || ""}"><span class="t">+${e.t.toFixed(2)}s</span><span aria-hidden="true">${esc(d.i)}</span><span><span class="lab">${esc(d.l)}</span> <span class="body">${esc(d.b)}</span></span></li>`; }).join("");
+  return `<article class="run"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+    <b><i class="swatch" style="background:var(${colorVar(r.config)})"></i> ${esc(label(r.config))}</b>${outcomePill(r)}</div>
+    <div class="state"><b>Final database state</b><br>${dbState(r)}</div>
+    <div class="n" style="color:var(--muted);font-size:12px">${r.usage.llm_calls} LLM calls · ${(r.usage.input_tokens + r.usage.output_tokens).toLocaleString()} tokens · ${r.latency_s}s</div>
+    <ol class="events">${ev || '<li><span></span><span></span><span class="body">No trace recorded.</span></li>'}</ol></article>`;
+}
+
+/* ------------------------------------------------------------------ tooltips (hover and keyboard focus) */
+function wireTips() {
+  const tip = $("#tip");
+  const show = (el, x, y) => { tip.innerHTML = el.dataset.tip; tip.style.display = "block";
+    const r = tip.getBoundingClientRect(); tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px"; tip.style.top = Math.min(y + 14, innerHeight - r.height - 8) + "px"; };
+  document.querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mousemove", e => show(el, e.clientX, e.clientY));
+    el.addEventListener("mouseleave", () => tip.style.display = "none");
+    el.addEventListener("focus", () => { const b = el.getBoundingClientRect(); show(el, b.left + b.width / 2, b.bottom); });
+    el.addEventListener("blur", () => tip.style.display = "none");
+  });
+}
+
+/* ------------------------------------------------------------------ chrome */
+$("#dataset").addEventListener("change", e => { state.name = e.target.value; load(); });
+$("#domain").addEventListener("change", e => { state.domain = e.target.value; render(); });
+$("#theme").addEventListener("click", () => {
+  const dark = document.documentElement.dataset.theme === "dark" ||
+    (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("arl-theme", document.documentElement.dataset.theme); } catch (_) {}
+  if (state.summary) render();
+});
+try { const t = localStorage.getItem("arl-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+boot();
+</script>
+</body>
+</html>
