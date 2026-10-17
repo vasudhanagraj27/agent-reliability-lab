@@ -16,7 +16,8 @@ grades every outcome from the **actual database state**, never from what the age
 **Live dashboard:** https://vasudhaa27-agent-reliability-lab.static.hf.space/  ·  [Hugging Face Space](https://huggingface.co/spaces/vasudhaa27/agent-reliability-lab)
 
 ![dashboard](docs/dashboard.png)
-<!-- Add a screenshot at docs/dashboard.png before publishing. -->
+<img width="2560" height="1880" alt="image" src="https://github.com/user-attachments/assets/577315fc-49b1-49ec-95ef-149a90b35682" />
+
 
 ## What it demonstrates
 - A **reusable reliability framework**: a `Domain` plugin interface, one LangGraph agent builder driven by
@@ -229,4 +230,5 @@ static Hugging Face Space or any static host; or run the container (`Dockerfile`
 [`docs/DEPLOY.md`](docs/DEPLOY.md). Live runs (`POST /api/live-run`) are off unless `ENABLE_LIVE_RUN=1`.
 
 ## License
-Add a license of your choice before publishing.
+## License
+MIT. See [LICENSE](LICENSE).
