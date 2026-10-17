@@ -16,9 +16,6 @@ grades every outcome from the **actual database state**, never from what the age
 **Live dashboard:** https://vasudhaa27-agent-reliability-lab.static.hf.space/  ·  [Hugging Face Space](https://huggingface.co/spaces/vasudhaa27/agent-reliability-lab)
 
 ![dashboard](docs/dashboard.png)
-<img width="2560" height="1880" alt="image" src="https://github.com/user-attachments/assets/577315fc-49b1-49ec-95ef-149a90b35682" />
-
-
 ## What it demonstrates
 - A **reusable reliability framework**: a `Domain` plugin interface, one LangGraph agent builder driven by
   five switchable safeguards, a configurable fault injector, a database-grounded grader.
